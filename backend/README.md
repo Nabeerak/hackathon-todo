@@ -7,6 +7,10 @@ FastAPI backend for the full-stack todo application with JWT authentication and 
 - **JWT Authentication**: Secure user authentication with 7-day token expiry
 - **RESTful API**: Full CRUD operations for tasks
 - **Multi-User Support**: Complete data isolation between users
+- **AI-Powered Task Assistant** (Phase 3): Natural language task creation and management
+- **Real-Time Updates**: Server-Sent Events (SSE) for live task synchronization
+- **AI Personalization**: Learn user patterns and preferences over time
+- **Rate Limiting**: Prevent API cost overruns (100 requests/user/day default)
 - **SQLModel ORM**: Type-safe database operations
 - **Input Validation**: Pydantic models for request/response validation
 - **Connection Pooling**: Efficient database connection management
@@ -19,6 +23,7 @@ FastAPI backend for the full-stack todo application with JWT authentication and 
 - PostgreSQL (Neon Serverless or local)
 - python-jose (JWT)
 - passlib (password hashing with bcrypt)
+- OpenAI Python SDK (GPT-4o-mini for AI features)
 - UV package manager
 
 ## Setup
@@ -45,14 +50,28 @@ cp ../.env.example ../.env
 Create a `.env` file at the repository root with:
 
 ```env
+# Database
 DATABASE_URL=postgresql://user:password@localhost:5432/todo_db
+
+# JWT
 JWT_SECRET_KEY=your-secret-key-here-change-in-production
 JWT_ALGORITHM=HS256
 JWT_EXPIRE_DAYS=7
+
+# URLs & CORS
 BACKEND_URL=http://localhost:8000
 FRONTEND_URL=http://localhost:3000
 ALLOWED_ORIGINS=http://localhost:3000
 ENVIRONMENT=development
+
+# Phase 3: AI Configuration (REQUIRED for AI features)
+OPENAI_API_KEY=sk-proj-your-openai-key-here  # Get from https://platform.openai.com/api-keys
+OPENAI_MODEL=gpt-4o-mini  # Cost-effective model (~$0.15/1M input tokens)
+OPENAI_MAX_TOKENS=500
+OPENAI_TEMPERATURE=0.3
+AI_RATE_LIMIT_PER_DAY=100  # Prevent cost overruns
+AI_RATE_LIMIT_PER_HOUR=20
+AI_FEATURES_ENABLED=true  # Master toggle for AI functionality
 ```
 
 ### Database Initialization
@@ -310,6 +329,47 @@ Delete a task.
 
 **Errors**:
 - 404 Not Found: Task doesn't exist or doesn't belong to user
+
+---
+
+### AI Endpoints (Phase 3)
+
+#### POST `/api/v1/chat/messages`
+Send natural language message to AI assistant.
+
+**Request**:
+```json
+{
+  "content": "Add buy groceries tomorrow at 3pm"
+}
+```
+
+**Response**: Returns AI response with proposed task action.
+
+#### GET `/api/v1/chat/stream`
+Server-Sent Events (SSE) endpoint for real-time task updates.
+
+#### POST `/api/v1/ai/actions/{id}/confirm`
+Confirm AI-proposed task action.
+
+#### POST `/api/v1/ai/actions/{id}/reject`
+Reject AI-proposed task action.
+
+#### GET `/api/v1/ai/preferences`
+Get user AI preferences (tone, language, proactive suggestions).
+
+#### PATCH `/api/v1/ai/preferences`
+Update user AI preferences.
+
+#### GET `/api/v1/ai/quota`
+Get AI usage quota (remaining requests, resets_at).
+
+#### GET `/api/v1/ai/health`
+Check OpenAI API connectivity and service health.
+
+For complete AI API documentation, see: http://localhost:8000/docs after running the server.
+
+---
 
 ## Authentication
 

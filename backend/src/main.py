@@ -9,6 +9,11 @@ from .config import settings
 from .db import create_db_and_tables
 from .api.auth import router as auth_router
 from .api.tasks import router as tasks_router
+from .api.chat import router as chat_router
+from .api.ai_actions import router as ai_actions_router
+from .api.ai_preferences import router as ai_preferences_router  # Phase 7: AI preferences
+from .api.ai_quota import router as ai_quota_router  # Phase 8: AI quota
+from .api.ai_health import router as ai_health_router  # Phase 8: AI health check
 
 # Create FastAPI application
 app = FastAPI(
@@ -30,6 +35,11 @@ app.add_middleware(
 # Include routers
 app.include_router(auth_router)
 app.include_router(tasks_router)
+app.include_router(chat_router)  # Phase 3: AI chat endpoints
+app.include_router(ai_actions_router)  # Phase 3: AI action confirmation endpoints
+app.include_router(ai_preferences_router)  # Phase 7: AI preferences
+app.include_router(ai_quota_router)  # Phase 8: AI quota
+app.include_router(ai_health_router)  # Phase 8: AI health check
 
 
 # Global exception handlers for consistent error responses

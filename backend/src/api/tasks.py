@@ -6,10 +6,12 @@ from datetime import datetime
 from typing import Optional
 import html
 import logging
+import asyncio
 
 from ..models import Task
 from ..db import get_db_session
 from ..auth.middleware import get_current_user_id, validate_user_id_match
+from ..services.ai.chat_service import ChatService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -154,6 +156,24 @@ async def create_task(
 
     logger.info(f"Task created: ID={task.id}, User={user_id}, Title='{task.title}'")
 
+    # Emit SSE event for real-time sync (T078)
+    task_data = {
+        "id": task.id,
+        "user_id": task.user_id,
+        "title": task.title,
+        "description": task.description,
+        "is_completed": task.is_completed,
+        "created_at": task.created_at.isoformat(),
+        "updated_at": task.updated_at.isoformat(),
+    }
+    try:
+        asyncio.create_task(
+            ChatService.broadcast_event(user_id, "task_created", task_data)
+        )
+    except Exception as e:
+        # Don't fail the request if SSE broadcast fails
+        logger.warning(f"Failed to broadcast task_created SSE event: {str(e)}")
+
     return TaskResponse(
         id=task.id,
         user_id=task.user_id,
@@ -239,6 +259,24 @@ async def update_task(
 
     logger.info(f"Task updated: ID={task_id}, User={user_id}")
 
+    # Emit SSE event for real-time sync (T077)
+    task_data = {
+        "id": task.id,
+        "user_id": task.user_id,
+        "title": task.title,
+        "description": task.description,
+        "is_completed": task.is_completed,
+        "created_at": task.created_at.isoformat(),
+        "updated_at": task.updated_at.isoformat(),
+    }
+    try:
+        asyncio.create_task(
+            ChatService.broadcast_event(user_id, "task_updated", task_data)
+        )
+    except Exception as e:
+        # Don't fail the request if SSE broadcast fails
+        logger.warning(f"Failed to broadcast task_updated SSE event: {str(e)}")
+
     return TaskResponse(
         id=task.id,
         user_id=task.user_id,
@@ -275,6 +313,21 @@ async def delete_task(
         )
 
     logger.info(f"Task deleted: ID={task_id}, User={user_id}")
+
+    # Emit SSE event for real-time sync (T079) - before deletion
+    task_data = {
+        "id": task.id,
+        "user_id": task.user_id,
+        "title": task.title,
+    }
+    try:
+        asyncio.create_task(
+            ChatService.broadcast_event(user_id, "task_deleted", task_data)
+        )
+    except Exception as e:
+        # Don't fail the request if SSE broadcast fails
+        logger.warning(f"Failed to broadcast task_deleted SSE event: {str(e)}")
+
     session.delete(task)
     session.commit()
 
@@ -311,6 +364,24 @@ async def toggle_complete(
     session.refresh(task)
 
     logger.info(f"Task completion toggled: ID={task_id}, User={user_id}, Completed={task.is_completed}")
+
+    # Emit SSE event for real-time sync (T077)
+    task_data = {
+        "id": task.id,
+        "user_id": task.user_id,
+        "title": task.title,
+        "description": task.description,
+        "is_completed": task.is_completed,
+        "created_at": task.created_at.isoformat(),
+        "updated_at": task.updated_at.isoformat(),
+    }
+    try:
+        asyncio.create_task(
+            ChatService.broadcast_event(user_id, "task_updated", task_data)
+        )
+    except Exception as e:
+        # Don't fail the request if SSE broadcast fails
+        logger.warning(f"Failed to broadcast task_updated SSE event: {str(e)}")
 
     return TaskResponse(
         id=task.id,
