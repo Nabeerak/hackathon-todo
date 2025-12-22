@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: todo-backend
+    env: python
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: uvicorn src.main:app --host 0.0.0.0 --port 10000
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          name: postgres # Replace with your PostgreSQL service name if different
+          type: postgres
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: '["http://localhost:3000", "https://your-frontend-domain.com"]' # Replace with your frontend domain
+      - key: ENVIRONMENT
+        value: production

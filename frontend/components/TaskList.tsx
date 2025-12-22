@@ -1,5 +1,6 @@
 // T047: Create TaskList component to display all tasks
 // T054: Display empty state message when no tasks exist
+// T071: Pass onPlanTask to TaskItem components
 // T090: Make task list layout responsive (grid/stack)
 
 "use client";
@@ -9,13 +10,14 @@ import TaskItem from "./TaskItem";
 
 interface TaskListProps {
   tasks: Task[];
-  onToggleComplete: (taskId: string) => Promise<void>;
+  onToggleComplete: (taskId: number) => Promise<void>;
   onEdit: (task: Task) => void;
-  onDelete: (taskId: string) => Promise<void>;
+  onDelete: (taskId: number) => Promise<void>;
   onAddTask?: () => void;
+  onPlanTask?: (task: Task) => void;
 }
 
-export default function TaskList({ tasks, onToggleComplete, onEdit, onDelete, onAddTask }: TaskListProps) {
+export default function TaskList({ tasks, onToggleComplete, onEdit, onDelete, onAddTask, onPlanTask }: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 px-6">
@@ -108,6 +110,7 @@ export default function TaskList({ tasks, onToggleComplete, onEdit, onDelete, on
                 onToggleComplete={onToggleComplete}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onPlanTask={onPlanTask}
               />
             ))}
           </div>
@@ -128,6 +131,7 @@ export default function TaskList({ tasks, onToggleComplete, onEdit, onDelete, on
                 onToggleComplete={onToggleComplete}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onPlanTask={onPlanTask}
               />
             ))}
           </div>

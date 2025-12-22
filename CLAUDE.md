@@ -212,6 +212,8 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 ## Active Technologies
 - Python 3.13+ + UV (package manager), standard library (no external packages needed for Phase I) (001-console-todo)
 - In-memory (Python dict/list structures, no persistence) (001-console-todo)
+- Python 3.13+ (backend), TypeScript strict mode (frontend) (003-ai-task-assistant)
+- Neon PostgreSQL (existing Phase 2 database + new tables for ChatMessage, ChatSession, TaskAction, UserPreferences, AIContext) (003-ai-task-assistant)
 
 ## Recent Changes
 - 001-console-todo: Added Python 3.13+ + UV (package manager), standard library (no external packages needed for Phase I)

@@ -2,6 +2,7 @@
 // T059: Add completion checkbox/button to TaskItem component
 // T060: Implement toggle completion API call
 // T061: Add visual distinction for completed vs pending tasks
+// T071: Add "Help me plan this task" button to TaskItem.tsx
 // T076: Add edit button to TaskItem component
 // T085: Add delete button to TaskItem component
 // T086: Implement confirmation dialog for task deletion
@@ -14,12 +15,13 @@ import type { Task } from "@/types/task";
 
 interface TaskItemProps {
   task: Task;
-  onToggleComplete: (taskId: string) => Promise<void>;
+  onToggleComplete: (taskId: number) => Promise<void>;
   onEdit: (task: Task) => void;
-  onDelete: (taskId: string) => Promise<void>;
+  onDelete: (taskId: number) => Promise<void>;
+  onPlanTask?: (task: Task) => void;
 }
 
-export default function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemProps) {
+export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onPlanTask }: TaskItemProps) {
   const [isTogglingComplete, setIsTogglingComplete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -103,6 +105,24 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete }: T
 
           {/* Action buttons - touch-friendly */}
           <div className="flex-shrink-0 flex gap-2">
+            {/* T071: Help me plan button */}
+            {onPlanTask && !task.is_completed && (
+              <button
+                onClick={() => onPlanTask(task)}
+                className="p-2 text-blue-400 hover:bg-blue-400 hover:bg-opacity-10 rounded-lg transition-colors"
+                aria-label="Help me plan this task"
+                title="Help me plan this task"
+              >
+                <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                  />
+                </svg>
+              </button>
+            )}
             <button
               onClick={() => onEdit(task)}
               className="p-2 text-[var(--primary)] hover:bg-[var(--primary)] hover:bg-opacity-10 rounded-lg transition-colors"

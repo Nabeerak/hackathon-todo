@@ -2,12 +2,15 @@
 // T052: Fetch and display user's task list on page load
 // T055: Add loading and error states for API calls
 // T062: Update local state optimistically on completion toggle
+// T071: Add onPlanTask handler to open chat with pre-filled message
 // T081: Update local state after successful edit
 // T088: Remove task from local state after successful deletion
+// T041: Add ChatWidget to frontend/src/app/tasks/page.tsx with lazy loading
+// T044: Refresh task list after successful task creation via chat
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, TokenManager } from "@/lib/api";
 import { AuthService } from "@/lib/auth";
@@ -17,6 +20,9 @@ import TaskList from "@/components/TaskList";
 import TaskForm from "@/components/TaskForm";
 import Spinner from "@/components/ui/Spinner";
 
+// T041: Lazy load ChatWidget for better performance
+const ChatWidget = lazy(() => import("@/components/chat/ChatWidget"));
+
 export default function TasksPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -24,6 +30,8 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  // T071: State for pre-filled chat message
+  const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined);
 
   // Authentication guard - redirect to signin if not authenticated
   useEffect(() => {
@@ -101,7 +109,7 @@ export default function TasksPage() {
     }
   };
 
-  const handleToggleComplete = async (taskId: string) => {
+  const handleToggleComplete = async (taskId: number) => {
     const userId = TokenManager.getUserId();
     if (!userId) return;
 
@@ -128,7 +136,7 @@ export default function TasksPage() {
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
+  const handleDeleteTask = async (taskId: number) => {
     const userId = TokenManager.getUserId();
     if (!userId) return;
 
@@ -167,6 +175,14 @@ export default function TasksPage() {
 
   const handleCancelCreate = () => {
     setShowForm(false);
+  };
+
+  // T071: Handle "Help me plan this task" button click
+  const handlePlanTask = (task: Task) => {
+    const message = `Help me plan this task: "${task.title}". ${task.description ? `Description: ${task.description}` : ""}`;
+    setChatInitialMessage(message);
+    // Reset after a short delay to allow re-triggering
+    setTimeout(() => setChatInitialMessage(undefined), 1000);
   };
 
   if (isLoading) {
@@ -278,8 +294,16 @@ export default function TasksPage() {
             onEdit={handleEdit}
             onDelete={handleDeleteTask}
             onAddTask={handleAddTask}
+            onPlanTask={handlePlanTask}
           />
         </div>
+
+        {/* T041: ChatWidget with lazy loading */}
+        {/* T044: Pass fetchTasks to refresh list after chat task creation */}
+        {/* T071: Pass initialMessage to pre-fill chat */}
+        <Suspense fallback={null}>
+          <ChatWidget onTaskCreated={fetchTasks} initialMessage={chatInitialMessage} />
+        </Suspense>
       </div>
     </>
   );

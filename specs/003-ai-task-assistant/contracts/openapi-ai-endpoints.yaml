@@ -1,0 +1,800 @@
+openapi: 3.1.0
+info:
+  title: AI-Powered Task Assistant API
+  version: 3.0.0
+  description: |
+    Phase 3 API endpoints for conversational AI task management.
+    Extends Phase 2 todo application with natural language interface.
+  contact:
+    name: Hackathon Todo Evolution
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/v1/chat/messages:
+    post:
+      summary: Send chat message to AI assistant
+      description: |
+        Send a natural language message to the AI assistant. The AI will parse
+        the message, extract task-related intent, and respond with text and/or
+        proposed actions.
+      tags:
+        - Chat
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  description: User's natural language input
+                  minLength: 1
+                  maxLength: 1000
+                  example: "Add buy groceries tomorrow and call dentist by Friday"
+                session_id:
+                  type: string
+                  format: uuid
+                  description: Optional session ID to resume existing conversation
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessageResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+
+  /api/v1/chat/stream:
+    get:
+      summary: Server-Sent Events stream for AI responses
+      description: |
+        Establishes an SSE connection to receive real-time AI responses and
+        task updates. Used for streaming AI-generated content.
+      tags:
+        - Chat
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: SSE stream established
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-Sent Events stream
+                example: |
+                  data: {"type":"ai_response","content":"I'll create that task for you..."}
+
+                  data: {"type":"task_updated","task_id":"123e4567-e89b-12d3-a456-426614174000"}
+
+                  data: {"type":"done"}
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/chat/sessions:
+    post:
+      summary: Create a new chat session
+      description: Explicitly start a new conversation session with the AI
+      tags:
+        - Chat Sessions
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                context:
+                  type: string
+                  description: Optional initial context or topic
+                  maxLength: 500
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSession'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    get:
+      summary: List user's chat sessions
+      description: Retrieve all active or historical chat sessions for the user
+      tags:
+        - Chat Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: active_only
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Filter to active sessions only
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+          description: Maximum number of sessions to return
+      responses:
+        '200':
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatSession'
+                  total_count:
+                    type: integer
+                    example: 25
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/chat/sessions/{session_id}:
+    delete:
+      summary: End a chat session
+      description: Explicitly end a session and clear its context
+      tags:
+        - Chat Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Session ended successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/v1/chat/sessions/{session_id}/messages:
+    get:
+      summary: Get chat history for a session
+      description: Retrieve all messages in a conversation session
+      tags:
+        - Chat
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+          description: Maximum messages to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of messages to skip
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+                  total_count:
+                    type: integer
+                  has_more:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/v1/ai/actions/{action_id}/confirm:
+    post:
+      summary: Confirm AI-proposed task action
+      description: |
+        User confirms an AI-proposed action (create, update, delete, complete task).
+        Action is executed and result returned.
+      tags:
+        - AI Actions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: action_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                modifications:
+                  type: object
+                  description: Optional user edits to AI-proposed parameters
+                  example:
+                    title: "Buy organic groceries"
+      responses:
+        '200':
+          description: Action confirmed and executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionExecutionResult'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '410':
+          description: Action expired or already executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/ai/actions/{action_id}/reject:
+    post:
+      summary: Reject AI-proposed task action
+      description: User rejects an AI-proposed action
+      tags:
+        - AI Actions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: action_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Optional feedback for AI learning
+                  maxLength: 500
+      responses:
+        '200':
+          description: Action rejected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  action_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [rejected]
+                  rejected_at:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/v1/ai/actions/pending:
+    get:
+      summary: Get pending AI actions
+      description: List all actions awaiting user confirmation
+      tags:
+        - AI Actions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending actions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskAction'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/ai/quota:
+    get:
+      summary: Get rate limit status
+      description: Check remaining AI requests for current user
+      tags:
+        - Rate Limiting
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Quota information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                    format: uuid
+                  period:
+                    type: string
+                    enum: [day, hour]
+                    example: day
+                  limit:
+                    type: integer
+                    example: 100
+                    description: Maximum requests per period
+                  remaining:
+                    type: integer
+                    example: 73
+                    description: Requests remaining in current period
+                  resets_at:
+                    type: string
+                    format: date-time
+                    description: When quota resets
+                  cost_to_date:
+                    type: number
+                    format: float
+                    example: 0.12
+                    description: USD spent on OpenAI API this period
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/ai/preferences:
+    get:
+      summary: Get user AI preferences
+      description: Retrieve user's AI personalization settings
+      tags:
+        - Preferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Preferences retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    patch:
+      summary: Update user AI preferences
+      description: Update AI personalization settings
+      tags:
+        - Preferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preferred_language:
+                  type: string
+                  example: en
+                ai_tone:
+                  type: string
+                  enum: [professional, casual, concise]
+                proactive_suggestions_enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Preferences updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/ai/health:
+    get:
+      summary: AI service health check
+      description: Check availability of AI features
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unavailable]
+                  openai_api_status:
+                    type: string
+                    enum: [available, unavailable]
+                  response_time_ms:
+                    type: integer
+                    example: 150
+                  features:
+                    type: object
+                    properties:
+                      chat:
+                        type: boolean
+                      task_extraction:
+                        type: boolean
+                      real_time_sync:
+                        type: boolean
+                  checked_at:
+                    type: string
+                    format: date-time
+        '503':
+          description: Service is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from Phase 2 authentication system
+
+  schemas:
+    ChatMessageResponse:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+          description: Unique ID for user's message
+        session_id:
+          type: string
+          format: uuid
+          description: Session ID (new or existing)
+        ai_response:
+          type: object
+          properties:
+            message_id:
+              type: string
+              format: uuid
+            content:
+              type: string
+              description: AI's text response
+            proposed_action:
+              $ref: '#/components/schemas/TaskAction'
+            confidence:
+              type: number
+              format: float
+              minimum: 0.0
+              maximum: 1.0
+              description: AI's confidence in interpretation
+        timestamp:
+          type: string
+          format: date-time
+
+    ChatMessage:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [user_message, ai_response, system_notification]
+        content:
+          type: string
+        related_task_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        timestamp:
+          type: string
+          format: date-time
+
+    ChatSession:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        started_at:
+          type: string
+          format: date-time
+        last_activity_at:
+          type: string
+          format: date-time
+        active:
+          type: boolean
+        message_count:
+          type: integer
+        context_summary:
+          type: string
+          nullable: true
+
+    TaskAction:
+      type: object
+      properties:
+        action_id:
+          type: string
+          format: uuid
+        action_type:
+          type: string
+          enum: [create, update, delete, complete, query]
+        parameters:
+          type: object
+          description: Extracted task parameters (varies by action_type)
+          example:
+            title: "Buy groceries"
+            description: ""
+            due_date: "2025-12-20T00:00:00Z"
+            priority: "medium"
+        confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+        confirmation_status:
+          type: string
+          enum: [pending, confirmed, rejected]
+        proposed_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    ActionExecutionResult:
+      type: object
+      properties:
+        action_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [executed]
+        result:
+          type: object
+          properties:
+            task:
+              $ref: '#/components/schemas/Task'
+            tasks:
+              type: array
+              items:
+                $ref: '#/components/schemas/Task'
+            deleted_count:
+              type: integer
+        executed_at:
+          type: string
+          format: date-time
+
+    Task:
+      type: object
+      description: Phase 2 Task entity (unchanged)
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_completed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserPreferences:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        preferred_language:
+          type: string
+          example: en
+        ai_tone:
+          type: string
+          enum: [professional, casual, concise]
+        proactive_suggestions_enabled:
+          type: boolean
+        learned_shortcuts:
+          type: object
+          additionalProperties: true
+        updated_at:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: RATE_LIMIT_EXCEEDED
+            message:
+              type: string
+              example: Rate limit exceeded. Please try again later.
+            details:
+              type: object
+              additionalProperties: true
+            timestamp:
+              type: string
+              format: date-time
+
+  responses:
+    UnauthorizedError:
+      description: Authentication failed or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: Invalid or missing JWT token
+              timestamp: "2025-12-19T10:30:00Z"
+
+    ForbiddenError:
+      description: Access denied (e.g., accessing another user's resources)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: FORBIDDEN
+              message: You do not have permission to access this resource
+              timestamp: "2025-12-19T10:30:00Z"
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: NOT_FOUND
+              message: Requested resource does not exist
+              timestamp: "2025-12-19T10:30:00Z"
+
+    BadRequestError:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: BAD_REQUEST
+              message: Invalid preference value
+              details:
+                field: ai_tone
+                allowed_values: [professional, casual, concise]
+              timestamp: "2025-12-19T10:30:00Z"
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: RATE_LIMIT_EXCEEDED
+              message: You have exceeded your daily AI request limit (100/day)
+              details:
+                limit: 100
+                resets_at: "2025-12-20T00:00:00Z"
+              timestamp: "2025-12-19T10:30:00Z"
+
+    ServiceUnavailableError:
+      description: AI service temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: SERVICE_UNAVAILABLE
+              message: AI service is temporarily unavailable. Please use the traditional task form.
+              details:
+                openai_status: unavailable
+                fallback_available: true
+              timestamp: "2025-12-19T10:30:00Z"
+
+tags:
+  - name: Chat
+    description: Real-time chat with AI assistant
+  - name: Chat Sessions
+    description: Manage conversation sessions
+  - name: AI Actions
+    description: Confirm/reject AI-proposed task operations
+  - name: Rate Limiting
+    description: Check API quota and usage
+  - name: Preferences
+    description: AI personalization settings
+  - name: Health
+    description: Service health and availability
